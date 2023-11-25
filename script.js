@@ -21,46 +21,54 @@ let engine = Engine.create(),
             width: width,
             height: height,
             wireframes: false,
-            background: 'transparent'
+            background: 'transparent',
         }
     })
 let inputs = {x: 0, y: 0}
 
-let platform_width = 200
+let platform_width = 250
 let platform_height = container.clientHeight
 let num_platforms = Math.ceil(width/platform_width)+1
-let player_speed = 5
+let player_speed = 4
 let player_jump = 14
-let camera_speed = 4
+let camera_speed = 3
 let gravity = 0.0027
-let chance_for_hole = 20
+let hole_chance = 20
 let can_jump = false
-let on_platform = false
 let jumps_left = 2
 let score = 0
 let state = 'run'
 
-let player = Bodies.rectangle(width/2, 200, 64, 64)
+let player = Bodies.rectangle(width/2, 100, 64, 64)
 player.render.sprite.texture = "./assets/elementals_wind_hashashin_FREE_v1.1/PNG/idle/idle_1.png"
-player.render.sprite.yOffset = 0.875
+player.render.sprite.yOffset = 0.855
 player.render.sprite.yScale = 1.75
 player.render.sprite.xScale = 1.75
+player.label = "player"
 let platforms = []
 for(let i = 0; i < num_platforms; i++){
-    z = height-random(50, 200)
-    platforms.push(Bodies.rectangle(i*platform_width+50, z+platform_height/2, platform_width, platform_height, {isStatic: true}))
-    
+    z = height-random(50, 300)
+    platforms.push(Bodies.rectangle(i*platform_width+50, z+platform_height/2, platform_width+1, platform_height, {isStatic: true}))
+    platforms[i].render.fillStyle = ['#3C2E2E', '#3D2F2F', '#3E3030', '#403232'][Math.floor(random(0,4))]
+    platforms[i].render.strokeStyle = 'transparent'
     platforms[i].label = "platform"
 }
+let coins = []
+
 let camera_x = 0
 
-Composite.add(engine.world, [player, ...platforms])
+Composite.add(engine.world, [player, ...platforms, ...coins])
 engine.world.gravity.scale = gravity
+
+let music = new Audio('./assets/audio/music.mp3');
+music.play();
 
 Render.run(renderer)
 Runner.run(runner, engine)
 
 Events.on(runner, "tick", ()=>{
+    difficulty_controller()
+
     camera_x += camera_speed
     renderer.bounds = { min: { x: camera_x, y: 0 }, max: { x: width+camera_x, y: height }}
     Render.startViewTransform(renderer)
@@ -80,6 +88,7 @@ Events.on(runner, "tick", ()=>{
             y: player_jump*inputs.y
         })
         let audio = new Audio('./assets/audio/jump.wav');
+        audio.volume = 0.5;
         audio.play();
         jumps_left -= 1
     }
@@ -89,7 +98,7 @@ Events.on(runner, "tick", ()=>{
     for(let i in platforms){
         if(platforms[i].position.x < camera_x-platform_width/2){
             z = height-random(50, 250)
-            if(platforms[i==0?num_platforms-1:i-1].position.y != height*3/2 + 100 && random(0,100) < chance_for_hole) z = height + 100
+            if(platforms[i==0?num_platforms-1:i-1].position.y != height*3/2 + 100 && random(0,100) < hole_chance) z = height + 100
             Body.setPosition(platforms[i], {
                 x: camera_x + platform_width*(num_platforms-1/2),
                 y: z + platform_height/2
@@ -107,15 +116,16 @@ Events.on(runner, "tick", ()=>{
         let audio = new Audio('./assets/audio/death.wav');
         audio.play();
         Runner.stop(runner)
+        music.volume = 0.1
         setTimeout(()=>{
-            //alert("you lost!")
+            alert("you lost!")
             location.reload()
         }, 200)
     }
 
     if(player.position.x > score*100){
         score = Math.floor(player.position.x/100)
-        document.getElementById("score").innerHTML = `Score: ${score}`
+        document.getElementById("score").innerHTML = `score: ${score}`
     }
 
     if(inputs.x == 1){
@@ -126,6 +136,24 @@ Events.on(runner, "tick", ()=>{
         state = 'runLeft'
     }
 
+    for(let i in coins){
+        if(coins[i].position.x < camera_x || coins[i].position.y > height-30){
+            Composite.remove(engine.world, coins[i])
+            coins.splice(i, 1)
+        }
+    }
+
+    if(random(0,100) < camera_speed/10){
+        let coin = Bodies.circle(camera_x+width, random(0, height*2/3), 8, {restitution: 0.9, label: "coin"})
+        coin.render.fillStyle = "yellow"
+        coin.render.strokeStyle = "transparent"
+        coins.push(coin)
+        Composite.add(engine.world, coin)
+        Body.setVelocity(coin, {
+            x: -random(3,10),
+            y: 0
+        })
+    }
 })
 
 Events.on(engine, "collisionActive", (event)=>{
@@ -133,8 +161,26 @@ Events.on(engine, "collisionActive", (event)=>{
         if( (pair.bodyA.label == "platform" && pair.bodyB === player && pair.bodyA.position.y > pair.bodyB.position.y) ||
             (pair.bodyB.label == "platform" && pair.bodyA === player && pair.bodyB.position.y > pair.bodyA.position.y) ){
             can_jump = true
-            on_platform = true
-        }      
+        }
+    }
+})
+Events.on(engine, "collisionStart", (event)=>{
+    for(let pair of event.pairs){
+        if(pair.bodyB.label == "coin" && pair.bodyA === player){
+            score += 25
+            document.getElementById("score").innerHTML = `score: ${score}`
+            Composite.remove(engine.world, pair.bodyB)
+            let audio = new Audio('./assets/audio/coin.wav');
+            audio.play();
+        }
+        if(pair.bodyA.label == "coin" && pair.bodyB === player){
+            score += 25
+            document.getElementById("score").innerHTML = `score: ${score}`
+            Composite.remove(engine.world, pair.bodyA)
+            let audio = new Audio('./assets/audio/coin.wav');
+            audio.play();
+
+        }
     }
 })
 
@@ -168,37 +214,3 @@ document.addEventListener("DOMContentLoaded", () => {
         location.reload();
     });
 });
-
-
-/*
-// what i learned
-let my_engine = Engine.create()
-let my_renderer = Render.create({
-    element: container,
-    engine: my_engine,
-    options: {
-        width: container.clientWidth,
-        height: container.clientHeight,
-        wireframes: false
-    }
-})
-let my_runner = Runner.create()
-let ball = Bodies.circle(50, 50, 20, {restitution: 0.3})
-let floor = Bodies.rectangle(150, 400, 300, 20, {isStatic: true})
-
-floor.render.fillStyle = "red"
-
-Composite.add(my_engine.world, [ball, floor])
-
-Render.run(my_renderer)
-Runner.run(my_runner, my_engine)
-
-my_renderer.bounds = { min: { x: -300, y: 0 }, max: { x: container.clientWidth-300, y: container.clientHeight }}
-Render.startViewTransform(my_renderer)
-
-Events.on(my_runner, "tick", ()=>{
-    Body.applyForce(ball, ball.position, {x:0.0005, y:0})
-    Body.rotate(floor, -0.01)
-})
-
-*/
