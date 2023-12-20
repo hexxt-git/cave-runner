@@ -61,13 +61,18 @@ Composite.add(engine.world, [player, ...platforms, ...coins])
 engine.world.gravity.scale = gravity
 
 let music = new Audio('./assets/audio/music.mp3');
-music.play();
+music.loop = true;
 
 Render.run(renderer)
 Runner.run(runner, engine)
+music.play();
+
 
 Events.on(runner, "tick", ()=>{
     difficulty_controller()
+    if (music.paused) {
+        music.play().catch(error => console.log('Audio play failed due to', error));
+    }
 
     camera_x += camera_speed
     renderer.bounds = { min: { x: camera_x, y: 0 }, max: { x: width+camera_x, y: height }}
